@@ -3,7 +3,6 @@ from logging.handlers import SocketHandler
 import redis
 
 from shipment.utils import import_from_string
-from shipment.formatters import RedisFormatter, LogstashFormatter
 
 
 class RedisHandler(logging.Handler):
@@ -15,19 +14,17 @@ class RedisHandler(logging.Handler):
 
     Based on Jed Parsons' RedisHandler.
     """
-
-    @classmethod
-    def to(cklass, channel, host='localhost', port=6379, password=None, level=logging.NOTSET):
-        return cklass(channel, redis.Redis(host=host, port=port, password=password), level=level)
-
-    def __init__(self, channel, redis_client, level=logging.NOTSET):
-        """
-        Create a new logger for the given channel and redis_client.
-        """
+    def __init__(self, channel, host='localhost', port=6379, password=None, level=logging.NOTSET, formatter='shipment.LogstashFormatter',  message_type='logstash', tags=None, fqdn=False):
         logging.Handler.__init__(self, level)
         self.channel = channel
-        self.redis_client = redis_client
-        self.formatter = LogstashFormatter()
+        self.redis_client = redis.Redis(host=host, port=port, password=password)
+
+        # Import formatter class from string.
+        klass = import_from_string(formatter)
+        if formatter in ('shipment.LogstashFormatter', 'shipment.formatters.LogstashFormatter'):
+            self.formatter = klass(message_type, tags, fqdn)
+        else:
+            self.formatter = klass()
 
     def emit(self, record):
         """
@@ -50,9 +47,8 @@ class LogstashHandler(SocketHandler):
     def __init__(self, host='localhost', port=5959, formatter='shipment.LogstashFormatter', message_type='logstash', tags=None, fqdn=False):
         super(LogstashHandler, self).__init__(host, port)
 
-        # Import formatter class.
+        # Import formatter class from string.
         klass = import_from_string(formatter)
-
         if formatter in ('shipment.LogstashFormatter', 'shipment.formatters.LogstashFormatter'):
             self.formatter = klass(message_type, tags, fqdn)
         else:
